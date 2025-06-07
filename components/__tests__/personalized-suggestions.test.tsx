@@ -5,7 +5,7 @@ describe('PersonalizedSuggestions', () => {
 
   it('should be importable', async () => {
     // Test that the module can be imported without throwing
-    const { PersonalizedSuggestions } = await import('../personalized-suggestions')
-    expect(PersonalizedSuggestions).toBeDefined()
+    const componentModule = await import('../personalized-suggestions')
+    expect(componentModule.PersonalizedSuggestions).toBeDefined()
   })
 })
