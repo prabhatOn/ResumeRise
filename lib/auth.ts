@@ -5,17 +5,16 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/db"
 
 export const authOptions: NextAuthOptions = {
-  // Remove adapter when using JWT strategy to avoid conflicts
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  useSecureCookies: process.env.NODE_ENV === "production",
   pages: {
     signIn: "/login",
     signOut: "/",
-    error: "/login", // Error code passed in query string as ?error=
+    error: "/login",
   },
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -26,9 +25,11 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         try {
           if (!credentials?.email || !credentials?.password) {
-            console.log("Missing credentials")
             return null
           }
+
+          // Test database connection first
+          await prisma.$connect()
 
           const user = await prisma.user.findUnique({
             where: {
@@ -37,26 +38,25 @@ export const authOptions: NextAuthOptions = {
           })
 
           if (!user || !user.passwordHash) {
-            console.log("User not found or no password hash")
             return null
           }
 
           const isPasswordValid = await compare(credentials.password, user.passwordHash)
 
           if (!isPasswordValid) {
-            console.log("Invalid password")
             return null
           }
 
-          console.log("User authenticated successfully")
           return {
             id: user.id.toString(),
             email: user.email,
             name: user.name,
           }
         } catch (error) {
-          console.error("Authorization error:", error)
+          console.error("Auth error:", error)
           return null
+        } finally {
+          await prisma.$disconnect()
         }
       },
     }),
@@ -81,21 +81,4 @@ export const authOptions: NextAuthOptions = {
       return token
     },
   },
-  // Increase security in production
-  cookies:
-    process.env.NODE_ENV === "production"
-      ? {
-          sessionToken: {
-            name: `__Secure-next-auth.session-token`,
-            options: {
-              httpOnly: true,
-              sameSite: "lax",
-              path: "/",
-              secure: true,
-            },
-          },
-        }
-      : undefined,
-  secret: process.env.NEXTAUTH_SECRET,
-  debug: false, // Disable debug in production to reduce logs
 }
