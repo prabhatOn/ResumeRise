@@ -6,7 +6,6 @@ import { analyzeResume } from "@/lib/resume-analyzer"
 import { extractTextFromFile } from "@/lib/file-parser"
 import { validateFileUpload, schemas } from "@/lib/security"
 import { log } from "@/lib/logger"
-import { globalRateLimiter } from "@/lib/monitoring"
 import type { Session } from "next-auth"
 
 export async function POST(request: Request) {
@@ -16,17 +15,6 @@ export async function POST(request: Request) {
   let session: Session | null = null
   
   try {
-    // Rate limiting check
-    const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
-    const isRateLimited = globalRateLimiter.isRateLimited(clientIP)
-    if (isRateLimited) {
-      log.warn('Resume upload rate limited', {
-        clientIP,
-        error: 'Rate limit exceeded'
-      })
-      return NextResponse.json({ message: "Rate limit exceeded" }, { status: 429 })
-    }
-
     session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
@@ -95,10 +83,11 @@ export async function POST(request: Request) {
     // Extract text from file using our advanced parser
     const extractionStartTime = Date.now()
     const resumeContent = await extractTextFromFile(resumeFile)
-    log.performance('text_extraction', Date.now() - extractionStartTime, {
+    log.info('Text extraction completed', {
       fileName: resumeFile.name,
       fileType: resumeFile.type,
-      contentLength: resumeContent.length
+      contentLength: resumeContent.length,
+      duration: Date.now() - extractionStartTime
     })
 
     // Create resume in database
@@ -124,7 +113,7 @@ export async function POST(request: Request) {
     //   }
     // })
 
-    log.databaseOperation('resume_created', 'resume', {
+    log.info('Resume created in database', {
       resumeId: resume.id,
       userId,
       title
@@ -148,11 +137,12 @@ export async function POST(request: Request) {
     const analysisResult = await analyzeResume(resumeContent, jobDescription, resumeFile.type, resumeFile.name)
     const analysisTime = Date.now() - analysisStartTime
     
-    log.performance('resume_analysis', analysisTime, {
+    log.info('Resume analysis completed', {
       resumeId: resume.id,
       atsScore: analysisResult.atsScore,
       totalScore: analysisResult.totalScore,
-      contentLength: resumeContent.length
+      contentLength: resumeContent.length,
+      duration: analysisTime
     })
 
     // Create analysis in database with new industry fields
@@ -244,11 +234,6 @@ export async function POST(request: Request) {
       processingTime: totalTime
     })
 
-    log.performance('total_upload_process', totalTime, {
-      resumeId: resume.id,
-      userId
-    })
-
     return NextResponse.json(
       {
         resumeId: resume.id,
@@ -296,7 +281,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         message: "Failed to process resume upload",
-        error: process.env.NODE_ENV === 'development' ? errorMessage : 'Internal server error'
+        error: "Internal server error"
       }, 
       { status: 500 }
     )

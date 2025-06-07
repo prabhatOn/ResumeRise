@@ -1,10 +1,10 @@
-// Enhanced NLP analyzer using natural, compromise, and sentiment libraries
+// Enhanced NLP analyzer using natural and compromise libraries
 import natural from 'natural'
 import nlp from 'compromise'
-import { SentimentAnalyzer, PorterStemmer } from 'natural'
-import { log } from './logger'
+// Removed logger import as we're using simplified console logging
 
-// Initialize sentiment analyzer
+// Initialize sentiment analyzer with natural library
+const { SentimentAnalyzer, PorterStemmer } = natural
 const stemmer = PorterStemmer
 const analyzer = new SentimentAnalyzer('English', stemmer, 'afinn')
 
@@ -117,18 +117,17 @@ export class NLPAnalyzer {
         technicalSkillsFound: technicalSkillsAnalysis.skills,
         technicalSkillsScore: technicalSkillsAnalysis.score,
         grammarIssues: grammarAnalysis,
-        languageMetrics,
-        keyPhrases
+        languageMetrics,        keyPhrases
       }
 
-      log.performance('nlp_analysis', Date.now() - startTime, {
+      console.log(`NLP analysis completed in ${Date.now() - startTime}ms`, {
         textLength: text.length,
         tokenCount: tokens.length,
         sentimentScore: result.sentimentScore
       })
 
-      return result    } catch (error) {
-      log.error('nlp_analysis_error', {
+      return result} catch (error) {
+      console.error('NLP analysis error:', {
         error: error instanceof Error ? error.message : 'Unknown error',
         textLength: text.length
       })
