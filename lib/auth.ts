@@ -1,13 +1,15 @@
 import { compare } from "bcryptjs"
-import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
-
+import type { NextAuthOptions } from "next-auth"
 import { prisma } from "@/lib/db"
 
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60,
+  },
+  jwt: {
+    secret: process.env.NEXTAUTH_SECRET,
   },
   pages: {
     signIn: "/login",
@@ -24,45 +26,31 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
-          if (!credentials?.email || !credentials?.password) {
-            return null
-          }
-
-          // Test database connection first
-          await prisma.$connect()
+          if (!credentials?.email || !credentials?.password) return null
 
           const user = await prisma.user.findUnique({
-            where: {
-              email: credentials.email,
-            },
+            where: { email: credentials.email },
           })
 
-          if (!user || !user.passwordHash) {
-            return null
-          }
+          if (!user || !user.passwordHash) return null
 
-          const isPasswordValid = await compare(credentials.password, user.passwordHash)
-
-          if (!isPasswordValid) {
-            return null
-          }
+          const isValid = await compare(credentials.password, user.passwordHash)
+          if (!isValid) return null
 
           return {
             id: user.id.toString(),
             email: user.email,
             name: user.name,
           }
-        } catch (error) {
-          console.error("Auth error:", error)
+        } catch (error: any) {
+          console.error("NextAuth authorize error:", error?.message || error)
           return null
-        } finally {
-          await prisma.$disconnect()
         }
       },
     }),
   ],
   callbacks: {
-    session: ({ session, token }) => {
+    async session({ session, token }) {
       return {
         ...session,
         user: {
@@ -71,12 +59,9 @@ export const authOptions: NextAuthOptions = {
         },
       }
     },
-    jwt: ({ token, user }) => {
+    async jwt({ token, user }) {
       if (user) {
-        return {
-          ...token,
-          id: user.id,
-        }
+        token.id = user.id
       }
       return token
     },
