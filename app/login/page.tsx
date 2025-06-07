@@ -146,6 +146,7 @@ export default function LoginPage() {
                           <Input 
                             placeholder="Enter your email" 
                             className="glass-input pl-10 h-12 border-0 focus:ring-2 focus:ring-primary/20 bg-black/20" 
+                            autoComplete="email"
                             {...field} 
                           />
                         </div>
@@ -167,6 +168,7 @@ export default function LoginPage() {
                             type={showPassword ? "text" : "password"}
                             placeholder="Enter your password"
                             className="glass-input pl-10 pr-10 h-12 border-0 focus:ring-2 focus:ring-primary/20 bg-black/20" 
+                            autoComplete="current-password"
                             {...field} 
                           />
                           <button

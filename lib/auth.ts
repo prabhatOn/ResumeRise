@@ -1,4 +1,3 @@
-import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { compare } from "bcryptjs"
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
@@ -6,11 +5,12 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/db"
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Remove adapter when using JWT strategy to avoid conflicts
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
+  useSecureCookies: process.env.NODE_ENV === "production",
   pages: {
     signIn: "/login",
     signOut: "/",
@@ -24,30 +24,39 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            console.log("Missing credentials")
+            return null
+          }
+
+          const user = await prisma.user.findUnique({
+            where: {
+              email: credentials.email,
+            },
+          })
+
+          if (!user || !user.passwordHash) {
+            console.log("User not found or no password hash")
+            return null
+          }
+
+          const isPasswordValid = await compare(credentials.password, user.passwordHash)
+
+          if (!isPasswordValid) {
+            console.log("Invalid password")
+            return null
+          }
+
+          console.log("User authenticated successfully")
+          return {
+            id: user.id.toString(),
+            email: user.email,
+            name: user.name,
+          }
+        } catch (error) {
+          console.error("Authorization error:", error)
           return null
-        }
-
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
-        })
-
-        if (!user || !user.passwordHash) {
-          return null
-        }
-
-        const isPasswordValid = await compare(credentials.password, user.passwordHash)
-
-        if (!isPasswordValid) {
-          return null
-        }
-
-        return {
-          id: user.id.toString(),
-          email: user.email,
-          name: user.name,
         }
       },
     }),
@@ -88,5 +97,5 @@ export const authOptions: NextAuthOptions = {
         }
       : undefined,
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === "development",
+  debug: false, // Disable debug in production to reduce logs
 }

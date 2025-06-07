@@ -1,0 +1,12 @@
+{
+  "buildCommand": "prisma generate && next build",
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NEXTAUTH_URL": "https://resume-rise-gamma.vercel.app",
+    "NODE_ENV": "production"
+  }
+}
