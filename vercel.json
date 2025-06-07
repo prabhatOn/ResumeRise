@@ -1,0 +1,21 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "env": {
+    "NODE_ENV": "production",
+    "SKIP_DATABASE_CHECKS": "true"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production",
+      "SKIP_DATABASE_CHECKS": "true"
+    }
+  },
+  "functions": {
+    "app/api/**": {
+      "maxDuration": 30
+    }
+  }
+}

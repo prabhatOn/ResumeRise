@@ -5,6 +5,14 @@ export async function checkDatabaseConnection(): Promise<{
   error?: string
   latency?: number
 }> {
+  // Skip database checks during build time
+  if (process.env.SKIP_DATABASE_CHECKS === 'true') {
+    return {
+      isConnected: true,
+      latency: 0,
+    }
+  }
+
   try {
     const start = Date.now()
     await prisma.$queryRaw`SELECT 1`

@@ -10,7 +10,7 @@ export const prisma =
   })
 
 // Note: Prisma will connect automatically when a query is made
-// No need to manually connect during initialization
+// Skipping manual connection to avoid build-time issues
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
 
