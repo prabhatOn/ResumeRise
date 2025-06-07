@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int             @id @default(autoincrement())
+  email         String          @unique
+  passwordHash  String          @map("password_hash")
+  name          String?
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  resumes       Resume[]
+  jobDescriptions JobDescription[]
+  userActivities UserActivity[]
+  errorLogs     ErrorLog[]
+  apiUsage      ApiUsage[]
+  fileUploads   FileUpload[]
+
+  @@map("users")
+}
+
+model Resume {
+  id            Int             @id @default(autoincrement())
+  userId        Int             @map("user_id")
+  title         String
+  content       String
+  fileName      String          @map("file_name")
+  fileType      String          @map("file_type")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses      Analysis[]
+  fileUploads   FileUpload[]
+
+  @@map("resumes")
+}
+
+model JobDescription {
+  id            Int             @id @default(autoincrement())
+  userId        Int             @map("user_id")
+  title         String
+  content       String
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses      Analysis[]
+
+  @@map("job_descriptions")
+}
+
+model Analysis {
+  id                Int             @id @default(autoincrement())
+  resumeId          Int             @map("resume_id")
+  jobDescriptionId  Int?            @map("job_description_id")
+  atsScore          Int?            @map("ats_score")
+  keywordScore      Int?            @map("keyword_score")
+  grammarScore      Int?            @map("grammar_score")
+  formattingScore   Int?            @map("formatting_score")
+  sectionScore      Int?            @map("section_score")
+  actionVerbScore   Int?            @map("action_verb_score")
+  relevanceScore    Int?            @map("relevance_score")
+  bulletPointScore  Int?            @map("bullet_point_score")
+  languageToneScore Int?            @map("language_tone_score")
+  lengthScore       Int?            @map("length_score")
+  totalScore        Int?            @map("total_score")
+  suggestions       String?
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  resume            Resume          @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescription    JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  keywords          Keyword[]
+  sections          Section[]
+  issues            Issue[]
+
+  @@map("analyses")
+}
+
+// Enhanced Keyword model with normalization, categorization, and deduplication
+model Keyword {
+  id                    Int       @id @default(autoincrement())
+  analysisId            Int       @map("analysis_id")
+  keyword               String
+  normalizedKeyword     String    @map("normalized_keyword") // Lowercase, trimmed version for efficient matching
+  count                 Int       @default(1)
+  isFromJobDescription  Boolean   @default(false) @map("is_from_job_description")
+  isMatch               Boolean   @default(false) @map("is_match")
+  category              String?   // e.g., "technical", "soft_skill", "certification", "tool"
+  importance            Int       @default(1) @map("importance") // 1-5 scale for keyword importance
+  source                String?   // Which section the keyword came from
+  analysis              Analysis  @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  // Ensure unique keywords per analysis to prevent duplicates
+  @@unique([analysisId, normalizedKeyword])
+  // Index for efficient keyword lookups
+  @@index([normalizedKeyword])
+  // Compound index for common query patterns
+  @@index([analysisId, isMatch])
+  @@index([analysisId, category])
+  @@index([isFromJobDescription, isMatch])
+  @@map("keywords")
+}
+
+model Section {
+  id            Int       @id @default(autoincrement())
+  analysisId    Int       @map("analysis_id")
+  name          String
+  content       String
+  score         Int?
+  suggestions   String?
+  analysis      Analysis  @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@map("sections")
+}
+
+model Issue {
+  id            Int       @id @default(autoincrement())
+  analysisId    Int       @map("analysis_id")
+  category      String
+  severity      String
+  description   String
+  lineNumber    Int?      @map("line_number")
+  suggestion    String?
+  analysis      Analysis  @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@map("issues")
+}
+
+// New model for keyword categories and management
+model KeywordCategory {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique // e.g., "technical", "soft_skills", "certifications"
+  description String?
+  industry    String?   // Industry this category applies to
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  
+  @@map("keyword_categories")
+}
+
+// Pre-defined industry keywords for better matching efficiency
+model IndustryKeyword {
+  id                Int      @id @default(autoincrement())
+  keyword           String
+  normalizedKeyword String   @map("normalized_keyword")
+  industry          String   // e.g., "tech", "finance", "healthcare"
+  category          String   // e.g., "technical", "soft_skill", "tool"
+  importance        Int      @default(1) // 1-5 scale
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Ensure unique keywords per industry-category combination
+  @@unique([normalizedKeyword, industry, category])
+  @@index([industry])
+  @@index([normalizedKeyword])
+  @@index([category])
+  @@map("industry_keywords")
+}
+
+// Enhanced keyword analytics for performance optimization
+model KeywordAnalytics {
+  id                Int      @id @default(autoincrement())
+  keyword           String
+  normalizedKeyword String   @map("normalized_keyword")
+  industry          String
+  totalOccurrences  Int      @default(0) @map("total_occurrences")
+  matchRate         Float    @default(0.0) @map("match_rate") // Percentage of times this keyword matches
+  lastSeen          DateTime @default(now()) @map("last_seen") @db.Timestamptz
+  
+  @@unique([normalizedKeyword, industry])
+  @@index([industry, matchRate])
+  @@index([normalizedKeyword])
+  @@map("keyword_analytics")
+}
+
+// User activity audit trail
+model UserActivity {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  action      String   // e.g., "upload_resume", "view_analysis", "delete_resume"
+  resourceId  Int?     @map("resource_id") // ID of the affected resource (resume, analysis, etc.)
+  resourceType String? @map("resource_type") // Type of resource (resume, analysis, etc.)
+  metadata    Json?    // Additional data about the action
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@map("user_activities")
+}
+
+// System performance metrics
+model PerformanceMetric {
+  id            Int      @id @default(autoincrement())
+  operation     String   // e.g., "resume_analysis", "keyword_extraction"
+  duration      Int      // Duration in milliseconds
+  memoryUsage   Json?    // Memory usage data
+  success       Boolean  @default(true)
+  errorMessage  String?  @map("error_message")
+  metadata      Json?    // Additional performance data
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([operation, createdAt])
+  @@index([success])
+  @@map("performance_metrics")
+}
+
+// Error logs for debugging
+model ErrorLog {
+  id          Int      @id @default(autoincrement())
+  level       String   // error, warn, info, debug
+  message     String
+  stack       String?
+  userId      Int?     @map("user_id")
+  operation   String?  // Operation that caused the error
+  metadata    Json?    // Additional error context
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([level, createdAt])
+  @@index([resolved])
+  @@index([operation])
+  @@map("error_logs")
+}
+
+// API usage tracking
+model ApiUsage {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     @map("user_id")
+  endpoint    String
+  method      String
+  statusCode  Int      @map("status_code")
+  duration    Int      // Response time in milliseconds
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([endpoint, method])
+  @@index([statusCode])
+  @@map("api_usage")
+}
+
+// File upload tracking
+model FileUpload {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  fileName    String   @map("file_name")
+  fileSize    Int      @map("file_size") // Size in bytes
+  fileType    String   @map("file_type")
+  status      String   @default("uploaded") // uploaded, processed, failed
+  errorMessage String? @map("error_message")
+  resumeId    Int?     @map("resume_id") // Link to created resume if successful
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume      Resume?  @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("file_uploads")
+}

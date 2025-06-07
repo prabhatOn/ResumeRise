@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "env": {
+    "NEXTAUTH_URL": {
+      "description": "URL of your deployed application"
+    },
+    "NEXTAUTH_SECRET": {
+      "description": "Secret key for NextAuth.js (min 32 chars)",
+      "generateValue": true
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL connection string"
+    }
+  }
+}
